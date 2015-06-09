@@ -1,14 +1,18 @@
 package org.bukkit.plugin.java;
 
 import java.io.File;
+import java.lang.reflect.InvocationTargetException;
 import java.net.MalformedURLException;
 import java.net.URL;
 import java.net.URLClassLoader;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.Set;
+import java.util.logging.Level;
 
+import com.google.common.base.Throwables;
 import org.apache.commons.lang.Validate;
+import org.bukkit.Bukkit;
 import org.bukkit.plugin.InvalidPluginException;
 import org.bukkit.plugin.PluginDescriptionFile;
 
@@ -49,11 +53,22 @@ final class PluginClassLoader extends URLClassLoader {
                 throw new InvalidPluginException("main class `" + description.getMain() + "' does not extend JavaPlugin", ex);
             }
 
-            plugin = pluginClass.newInstance();
+            if (pluginClass.getClassLoader() == this) {
+                plugin = pluginClass.newInstance();
+            } else {
+                loader.server.getLogger().log(Level.WARNING, "Trying to load {0} for debugging", description.getName());
+                plugin = pluginClass.getConstructor(
+                    JavaPluginLoader.class, PluginDescriptionFile.class, File.class, File.class
+                ).newInstance(loader, description, dataFolder, file);
+            }
         } catch (IllegalAccessException ex) {
             throw new InvalidPluginException("No public constructor", ex);
         } catch (InstantiationException ex) {
             throw new InvalidPluginException("Abnormal plugin type", ex);
+        } catch (NoSuchMethodException ex) {
+            throw new InvalidPluginException("Missing constructor", ex);
+        } catch (InvocationTargetException ex) {
+            throw new InvalidPluginException(ex);
         }
     }
 
